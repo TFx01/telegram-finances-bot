@@ -1,0 +1,38 @@
+# Telegram Bot Configuration
+bot:
+  token: "${TELEGRAM_BOT_TOKEN}"  # Get from @BotFather
+  chat_id: 123456789  # Your Telegram chat ID (use @userinfobot to find)
+
+# OpenCode Configuration (via Tailscale)
+opencode:
+  url: "http://localhost:5147"  # Local endpoint (tunnel maps to this)
+  timeout: 300  # Session timeout in seconds
+
+# Tailscale Configuration
+tailscale:
+  enabled: true
+  # Get your MacBook's Tailscale IP with: tailscale ip
+  opencode_ip: "100.x.x.x"  # Your MacBook's Tailscale IP
+  opencode_ssh_port: 22  # SSH port on your MacBook
+  ssh_user: "your_username"  # SSH username on MacBook
+  ssh_key: "~/.ssh/id_ed25519"  # SSH private key path
+
+# Supabase Configuration (optional)
+supabase:
+  url: "https://your-project.supabase.co"
+  key: "${SUPABASE_ANON_KEY}"
+  enabled: true
+
+# Logging Configuration
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  format: "[{time}] {message}"
+  session_logs_dir: "logs/sessions"
+  daily_logs_dir: "logs/daily"
+
+# Features
+features:
+  voice_enabled: true
+  image_enabled: true
+  document_enabled: true
+  session_continuation: true

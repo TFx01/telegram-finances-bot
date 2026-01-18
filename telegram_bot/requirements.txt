@@ -1,0 +1,29 @@
+# Telegram Bot Dependencies
+# Telegram Bot Framework
+python-telegram-bot>=20.0
+httpx>=0.25.0
+
+# HTTP server for webhook
+fastapi>=0.109.0
+uvicorn>=0.27.0
+python-multipart>=0.0.6
+
+# Configuration management
+python-dotenv>=1.0.0
+pyyaml>=6.0.0
+
+# Data validation
+pydantic>=2.5.0
+
+# Logging
+loguru>=0.7.0
+
+# SSH tunnel support
+asyncssh>=2.0.0
+
+# Testing
+pytest>=7.0.0
+pytest-asyncio>=0.21.0
+pytest-cov>=4.0.0
+pytest-mock>=3.0.0
+httpx>=0.25.0
