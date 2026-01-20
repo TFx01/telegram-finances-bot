@@ -23,18 +23,18 @@ from typing import Any, Dict, List, Optional
 
 import yaml
 from dotenv import load_dotenv
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, validator
 
 
 def parse_env_var(value: Any) -> Any:
     """
     Parse a value that might contain environment variable references.
-    
+
     Supports formats:
       "${VAR}"           - Required env var (error if not set)
       "${VAR:-default}"  - Optional with default value
       "${VAR:-}"         - Optional with empty default
-    
+
     Examples:
       "${TELEGRAM_TOKEN}"           -> returns env var or error
       "${TELEGRAM_ID:-12345}"       -> returns env var or "12345"
@@ -44,19 +44,19 @@ def parse_env_var(value: Any) -> Any:
     """
     if not isinstance(value, str):
         return value
-    
+
     # Match ${VAR_NAME} or ${VAR_NAME:-default}
     pattern = r'\$\{([^:-]+)(?::-([^\}]*))?\}'
     match = re.search(pattern, value)
-    
+
     if not match:
         return value
-    
+
     env_var = match.group(1)
     default_value = match.group(2) or ""
-    
+
     env_value = os.environ.get(env_var)
-    
+
     if env_value is None:
         if default_value == "" and match.group(0) == match.group():
             # Full match with no default - this is required
@@ -65,7 +65,7 @@ def parse_env_var(value: Any) -> Any:
                 f"Either set it or use '${{{env_var}:-default}}' for optional values."
             )
         return default_value
-    
+
     return env_value
 
 
@@ -126,6 +126,7 @@ class SessionConfig(BaseModel):
     """Session configuration"""
     timeout: int = 3600
     storage: str = "memory"
+    default_agent: str = ""  # If empty, wrapper uses its default agent
 
 
 class FeaturesConfig(BaseModel):
@@ -138,14 +139,47 @@ class FeaturesConfig(BaseModel):
 class SecurityConfig(BaseModel):
     """Security and access control configuration"""
     allowed_chat_ids: List[int] = Field(default_factory=list)
+    allowed_user_ids: List[int] = Field(default_factory=list)  # Whitelist of user IDs who can use the bot
     mode: str = "both"  # "group", "private", or "both"
     block_unknown: bool = False
-    
+
+    @validator("allowed_user_ids", pre=True)
+    def parse_allowed_user_ids(cls, v):
+        """Parse comma-separated user IDs or list of user IDs"""
+        if isinstance(v, str):
+            # Handle comma-separated string: "123,456,789"
+            if "," in v:
+                return [int(x.strip()) for x in v.split(",") if x.strip()]
+            # Handle single string: "123456789"
+            if v.strip():
+                return [int(v.strip())]
+            return []
+        elif isinstance(v, list):
+            return v
+        return []
+
+    @validator("allowed_chat_ids", pre=True)
+    def parse_allowed_chat_ids(cls, v):
+        """Parse comma-separated chat IDs or list of chat IDs"""
+        if isinstance(v, str):
+            # Handle comma-separated string: "123,456,789"
+            if "," in v:
+                return [int(x.strip()) for x in v.split(",") if x.strip()]
+            # Handle single string: "123456789"
+            if v.strip():
+                return [int(v.strip())]
+            return []
+        elif isinstance(v, list):
+            return v
+        return []
+
     def model_dump(self, **kwargs):
-        """Custom dump to filter out empty/invalid chat IDs"""
+        """Custom dump to filter out empty/invalid chat/user IDs"""
         data = super().model_dump(**kwargs)
-        # Filter out invalid chat IDs (0 or empty strings that got converted)
+        # Filter out invalid chat IDs (0 or None)
         data["allowed_chat_ids"] = [cid for cid in data.get("allowed_chat_ids", []) if cid and cid != 0]
+        # Filter out invalid user IDs
+        data["allowed_user_ids"] = [uid for uid in data.get("allowed_user_ids", []) if uid and uid != 0]
         return data
 
 
@@ -165,23 +199,23 @@ class Config(BaseModel):
 def load_yaml_config(config_path: Optional[Path] = None) -> Dict[str, Any]:
     """
     Load configuration from YAML file and parse environment variables.
-    
+
     Also loads .env file from the project root for local development.
     """
     # Load .env file first (if it exists) - these will be overridden by config.yaml
     env_path = Path(__file__).parent.parent / ".env"
     if env_path.exists():
         load_dotenv(str(env_path))
-    
+
     if config_path is None:
         config_path = Path(__file__).parent.parent / "config.yaml"
-    
+
     if not config_path.exists():
         return {}
-    
+
     with open(config_path, "r", encoding="utf-8") as f:
         raw_config = yaml.safe_load(f) or {}
-    
+
     # Parse environment variable references
     return recursively_parse_env_vars(raw_config)
 
@@ -193,7 +227,7 @@ def apply_env_overrides(config_dict: Dict[str, Any]) -> Dict[str, Any]:
         config_dict.setdefault("telegram", {})["bot_token"] = os.environ["TELEGRAM_BOT_TOKEN"]
     if "TELEGRAM_CHAT_ID" in os.environ:
         config_dict.setdefault("telegram", {})["chat_id"] = int(os.environ["TELEGRAM_CHAT_ID"])
-    
+
     # Webhook overrides
     if "WEBHOOK_ENABLED" in os.environ:
         config_dict.setdefault("webhook", {})["enabled"] = os.environ["WEBHOOK_ENABLED"].lower() == "true"
@@ -201,17 +235,17 @@ def apply_env_overrides(config_dict: Dict[str, Any]) -> Dict[str, Any]:
         config_dict.setdefault("webhook", {})["host"] = os.environ["WEBHOOK_HOST"]
     if "WEBHOOK_PORT" in os.environ:
         config_dict.setdefault("webhook", {})["port"] = int(os.environ["WEBHOOK_PORT"])
-    
+
     # Wrapper overrides
     if "WRAPPER_URL" in os.environ:
         config_dict.setdefault("wrapper", {})["url"] = os.environ["WRAPPER_URL"]
     if "WRAPPER_TIMEOUT" in os.environ:
         config_dict.setdefault("wrapper", {})["timeout"] = int(os.environ["WRAPPER_TIMEOUT"])
-    
+
     # Logging overrides
     if "LOG_LEVEL" in os.environ:
         config_dict.setdefault("logging", {})["level"] = os.environ["LOG_LEVEL"]
-    
+
     return config_dict
 
 
